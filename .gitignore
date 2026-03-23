@@ -1,4 +1,8 @@
 data/
 bml-project/
 docs/
-.DS_Store?
+.DS_Store
+workflow/
+CLAUDE.md
+figures/
+report/
