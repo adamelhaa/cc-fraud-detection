@@ -6,3 +6,5 @@ workflow/
 CLAUDE.md
 figures/
 report/
+.DS_Store
+presentation/
