@@ -50,12 +50,10 @@ cc-fraud-detection/
 ├── notebooks/
 │   └── Notebook.ipynb          # main analysis notebook
 ├── figures/                    # all generated plots
-├── report/
-│   ├── main.tex                # LaTeX report source
-│   ├── references.bib
-│   └── figures/
-├── presentation/               # slide deck
-└── workflow/                   # internal coordination files
+└── report/
+    ├── main.tex                # LaTeX report source
+    ├── references.bib
+    └── figures/
 ```
 
 ## Setup and reproduction
