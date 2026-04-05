@@ -1,138 +1,114 @@
-# EE4685 Assignment 2: Credit Card Fraud Detection
+## Credit Card Fraud Detection: A Bayesian and Non-Bayesian Comparison
 
-Bayesian vs non-Bayesian comparison across supervised and anomaly detection approaches.
+Credit card fraud detection with a 2x2 comparison of Bayesian and non-Bayesian methods, developed for TU Delft EE4685 Bayesian Machine Learning.
 
-**Authors:** Adam El Haddouchi (5476526) & Naufal El Khatibi (5315778)
+## Project context
 
-**Course:** EE4685 Bayesian Machine Learning, TU Delft, Q3 2025-2026
+This project is Assignment 2 for EE4685 Bayesian Machine Learning at Delft University of Technology, Q3 2025-2026. Authors: Adam El Haddouchi (5476526) and Naufal El Khatibi (5315778), MSc Electrical Engineering.
 
-## Overview
+## The problem
 
-Credit card fraud detection is a binary classification problem with extreme class imbalance: only 0.172% of transactions in the dataset are fraudulent. Standard models output point predictions, but a fraud analyst also needs to know how confident the model is. Bayesian models can provide this confidence estimate, which opens up different operational decisions.
+The ULB credit card fraud dataset (Dal Pozzolo et al., 2015) contains 284,807 transactions made by European cardholders over two days in September 2013. Only 492 transactions (0.172%) are fraudulent, giving an imbalance ratio of roughly 577:1. Features V1 through V28 are the result of a proprietary PCA transformation; the original variables are unknown. The only raw features are `Time` and `Amount`.
 
-We compare five models arranged in a 2x2 design crossing {supervised, anomaly detection} with {Bayesian, non-Bayesian}, plus an autoencoder as a fifth model. The supervised pair (Logistic Regression vs. Bayesian Logistic Regression) shares the same likelihood and differs only in inference method. The anomaly detection pair (One-Class SVM vs. Bayesian Gaussian Mixture Model) shares the same training data (normal transactions only). This design controls for confounding variables so that performance differences within a pair can be attributed to the Bayesian treatment.
+Fraud detection is a natural setting for comparing Bayesian and non-Bayesian methods. The cost of missing a fraud far exceeds the cost of a false alarm, so knowing how confident a model is matters for operational decisions. Bayesian models provide this uncertainty directly, while non-Bayesian models do not. At the same time, confirmed fraud labels arrive with delays in real systems, making unsupervised (anomaly detection) approaches worth evaluating alongside supervised ones.
 
-The notebook markdown cells contain extended analysis beyond what the report covers, including intermediate results, visualizations, and discussion of modeling choices.
+## Method: the 2x2 design
 
-### Research Questions
+The comparison crosses two axes (supervised vs. anomaly detection, Bayesian vs. non-Bayesian) to isolate their effects:
 
-1. **Does Bayesian inference add value over standard methods?** In the supervised setting, BLR matched LR on classification metrics but added uncertainty estimates that enable a three-bucket decision protocol (auto-approve, human review, auto-flag), auto-approving 92.6% of transactions while maintaining 90.8% fraud coverage.
+|                    | Non-Bayesian              | Bayesian                          |
+|--------------------|---------------------------|-----------------------------------|
+| **Supervised**     | Logistic Regression (LR)  | Bayesian Logistic Regression (BLR)|
+| **Anomaly Detection** | One-Class SVM (OC-SVM) | Bayesian Gaussian Mixture (BGMM)  |
 
-2. **How much does access to labeled fraud data help?** BGMM, trained without any fraud labels, achieved F1 = 0.754, competitive with the supervised models (F1 = 0.819). The choice of anomaly detection method matters more than having labeled data: OC-SVM achieved only F1 = 0.431 on the same data.
+The supervised pair shares the same likelihood and differs only in inference method (point estimate vs. Laplace approximation). The anomaly detection pair shares the same training data (normal transactions only) and differs in modeling approach. Any performance difference within a pair is due to the Bayesian treatment, not to differences in training data or model family.
 
-3. **Does nonlinear representation learning capture fraud structure that linear methods miss?** No. The autoencoder performed worst (F1 = 0.242), confirming that the PCA features already capture the relevant fraud geometry linearly.
+## Key contributions
 
-## Dataset
+1. **2x2 comparison design.** Crossing supervised/anomaly with Bayesian/non-Bayesian cleanly separates the effect of Bayesian inference from the effect of labeled data.
+2. **Three-bucket Bayesian decision protocol.** BLR's posterior uncertainty routes transactions into auto-approve, human-review, or auto-flag buckets, giving analysts a structured workload split that binary classifiers cannot provide.
+3. **PCA geometry limitation analysis.** The proprietary PCA transformation in the dataset affects anomaly detection geometry. This is framed as a limitation rather than a finding: distance and density based methods operate in an unknown rotated space.
 
-We use the [Kaggle Credit Card Fraud Detection dataset](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud), created by the Machine Learning Group at Universite Libre de Bruxelles. It contains 284,807 transactions made by European cardholders over two days in September 2013, of which 492 (0.172%) are fraudulent. The imbalance ratio is about 577:1.
+## Key findings
 
-Features V1 through V28 are the result of a proprietary PCA transformation applied to the original transaction variables. The original feature space and the PCA rotation are unknown. The only untransformed features are `Time` (seconds since the first transaction) and `Amount` (transaction value in euros). The target variable `Class` is 1 for fraud and 0 for normal.
+On the test set (56,962 transactions, 98 fraud), BLR achieves the highest AUPRC at 0.712, followed by LR at 0.702, BGMM at 0.691, and OC-SVM at 0.334. At the F1-optimal threshold, BLR and LR produce identical classification results (F1 = 0.819, 79 TP, 16 FP, 19 FN). The Bayesian treatment does not improve point predictions in the supervised setting.
 
-Key properties from exploratory analysis:
-- `Amount` is heavily right-skewed (median 22 EUR vs. mean 88 EUR), with 0.64% of transactions at zero amount
-- The most discriminative features are V17, V14, V12, and V10 (correlations with Class between -0.22 and -0.33)
-- `Time` shows daily patterns but similar distributions across classes, with low value for classification
+BGMM, trained without any fraud labels, reaches F1 = 0.754 (72 TP, 21 FP, 26 FN), competitive with the supervised models. The gap between OC-SVM and BGMM (F1 0.431 vs. 0.754) is larger than the gap between BGMM and the supervised pair.
 
-## Evaluation Strategy
+At matched probability thresholds (0.5), binary LR and the three-bucket protocol catch the same 89 of 98 test fraud cases. The protocol's value is structural, not metric-based: it routes 92.6% of transactions to auto-approve, 5.2% to human review (capturing 80 fraud), and 2.1% to auto-flag (9 fraud), concentrating analyst effort on the 7.3% of transactions most likely to need it.
 
-The primary metric is **AUPRC** (Area Under the Precision-Recall Curve). Davis and Goadrich (2006) and Saito and Rehmsmeier (2015) showed that precision-recall curves are more informative than ROC curves for heavily skewed datasets. A trivial classifier predicting "normal" for every transaction achieves 99.83% accuracy while detecting zero fraud, so accuracy is meaningless here.
+See `report/main.tex` for the full discussion.
 
-For threshold selection, we tune on the validation set by maximizing F1. The data is split into stratified 64/16/20 train/validation/test sets. A `StandardScaler` is fit on the training set only and applied to all splits. Supervised models use `class_weight='balanced'` rather than SMOTE to handle imbalance. Anomaly detection models train on normal transactions only (181,961 samples).
-
-ROC-AUC is reported for completeness but all comparisons are based on AUPRC. We show in the results why ROC-AUC is actively misleading for this dataset.
-
-## Repository Structure
+## Repository structure
 
 ```
 cc-fraud-detection/
 ├── README.md
-├── requirements.txt              # Direct dependencies
+├── requirements.txt
 ├── data/
-│   └── creditcard.csv            # Dataset (not included, see below)
+│   └── creditcard.csv          # not committed (see Setup)
 ├── notebooks/
-│   └── Notebook.ipynb            # Main analysis notebook
-└── figures/                      # All generated plots
+│   └── Notebook.ipynb          # main analysis notebook
+├── figures/                    # all generated plots
+├── report/
+│   ├── main.tex                # LaTeX report source
+│   ├── references.bib
+│   └── figures/
+├── presentation/               # slide deck
+└── workflow/                   # internal coordination files
 ```
 
-## Key Results
+## Setup and reproduction
 
-| Model | AUPRC | ROC-AUC | F1 | Precision | Recall | TP | FP | FN |
-|-------|-------|---------|------|-----------|--------|---:|---:|---:|
-| Logistic Regression | 0.702 | 0.973 | 0.819 | 0.832 | 0.806 | 79 | 16 | 19 |
-| Bayesian Logistic Regression | 0.712 | 0.973 | 0.819 | 0.832 | 0.806 | 79 | 16 | 19 |
-| Bayesian Gaussian Mixture | 0.691 | 0.949 | 0.754 | 0.774 | 0.735 | 72 | 21 | 26 |
-| One-Class SVM | 0.334 | 0.958 | 0.431 | 0.358 | 0.541 | 53 | 95 | 45 |
-| Autoencoder | 0.208 | 0.939 | 0.242 | 0.471 | 0.163 | 16 | 18 | 82 |
+### 1. Dataset
 
-Test set: 56,962 transactions, 98 fraud cases. Thresholds tuned on the validation set by maximizing F1.
+The dataset is not committed due to its size. Download it from [Kaggle](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) and place it at `data/creditcard.csv`.
 
-The results fall into three tiers: LR/BLR (Tier 1), BGMM (Tier 2), OC-SVM and Autoencoder (Tier 3). The PR curves show this separation clearly, while ROC-AUC compresses a 5x AUPRC range into a narrow 0.94-0.97 band, hiding meaningful differences.
-
-![PR and ROC curves on the test set](figures/final_pr_roc_curves.png)
-
-Two contributions go beyond standard model comparison. First, we define a **Bayesian decision protocol** that uses BLR's per-prediction uncertainty to route transactions into auto-approve, human review, or auto-flag buckets. Second, we show with concrete numbers why **ROC-AUC is misleading** for this dataset: OC-SVM has higher ROC-AUC than BGMM (0.958 vs. 0.949) despite being far worse on every metric that matters to a fraud analyst.
-
-## Reproducing the Results
-
-**Python version:** 3.12.9
+### 2. Environment
 
 ```bash
-# 1. Clone the repository
-git clone <repository-url>
-cd cc-fraud-detection
-
-# 2. Create and activate a virtual environment
 python3 -m venv bml-project
 source bml-project/bin/activate
-
-# 3. Install dependencies
 pip install -r requirements.txt
-
-# 4. Download the dataset
-# Go to https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud
-# Download creditcard.csv and place it in data/
-mkdir -p data
-# mv ~/Downloads/creditcard.csv data/
-
-# 5. Open and run the notebook
-jupyter notebook notebooks/Notebook.ipynb
 ```
 
-The dataset is not included in the repository due to its size. Download it from the [Kaggle Credit Card Fraud Detection dataset](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud). Expected file: `data/creditcard.csv`, 284,807 rows, 31 columns (V1-V28, Time, Amount, Class).
+### 3. Run the notebook
 
-`random_state=42` is used throughout for reproducibility. The full notebook runs in roughly 5-10 minutes depending on hardware (the OC-SVM and autoencoder training are the slowest steps).
+Open in Jupyter and run all cells, or execute from the command line:
 
-## Models
+```bash
+jupyter nbconvert --to notebook --execute notebooks/Notebook.ipynb \
+    --output Notebook.ipynb --ExecutePreprocessor.timeout=1800
+```
 
-| Model | Type | Role in comparison |
-|-------|------|--------------------|
-| **Logistic Regression (LR)** | Supervised, non-Bayesian | Baseline classifier with balanced class weights and L2 regularization |
-| **Bayesian Logistic Regression (BLR)** | Supervised, Bayesian | Laplace approximation over LR weights; outputs predicted probability with uncertainty |
-| **One-Class SVM (OC-SVM)** | Anomaly detection, non-Bayesian | RBF kernel boundary around normal data; anomaly score = signed distance to boundary |
-| **Bayesian Gaussian Mixture (BGMM)** | Anomaly detection, Bayesian | Dirichlet process mixture of Gaussians; anomaly score = negative log-likelihood |
-| **Autoencoder (AE)** | Anomaly detection, neural network | Symmetric feedforward network (30-14-7-14-30); anomaly score = reconstruction error |
+Expect 5 to 10 minutes on a modern laptop. BGMM training dominates the runtime (roughly 2 to 3 minutes, hardware-dependent).
 
-## Future Work
+### 4. Compile the report
 
-- **Bayesian neural networks.** Extend uncertainty quantification to nonlinear models, for example using MC Dropout or variational inference over neural network weights.
-- **Concept drift evaluation.** Test on datasets with temporal structure to see whether these findings hold when fraud patterns change over time.
-- **Cost-sensitive thresholds.** Replace F1-optimal tuning with thresholds based on realistic fraud-to-false-alarm cost ratios, which would better reflect operational requirements.
-- **Raw (non-PCA) features.** The proprietary PCA transformation may linearize the fraud signal. Evaluating on datasets with raw features would test whether the autoencoder's failure generalizes.
-- **Sequential and behavioral features.** The current dataset contains only per-transaction features. Adding merchant history, device fingerprints, or spending patterns could improve separation between fraud and normal transactions.
+```bash
+cd report
+pdflatex main.tex && bibtex main && pdflatex main.tex && pdflatex main.tex
+```
 
-## References
+### 5. Reproducibility
 
-1. Bishop, C. M. (2006). *Pattern Recognition and Machine Learning*. Springer.
-2. Bolton, R. J. and Hand, D. J. (2002). Statistical Fraud Detection: A Review. *Statistical Science*, 17(3), 235-255.
-3. Chandola, V., Banerjee, A., and Kumar, V. (2009). Anomaly Detection: A Survey. *ACM Computing Surveys*, 41(3), 1-58.
-4. Chawla, N. V., Bowyer, K. W., Hall, L. O., and Kegelmeyer, W. P. (2002). SMOTE: Synthetic Minority Over-sampling Technique. *Journal of Artificial Intelligence Research*, 16, 321-357.
-5. Dal Pozzolo, A. (2015). *Adaptive Machine Learning for Credit Card Fraud Detection*. PhD thesis, Universite Libre de Bruxelles.
-6. Dal Pozzolo, A., Caelen, O., Le Borgne, Y.-A., Waterschoot, S., and Bontempi, G. (2014). Learned Lessons in Credit Card Fraud Detection from a Practitioner Perspective. *Expert Systems with Applications*, 41(10), 4915-4928.
-7. Dal Pozzolo, A., Boracchi, G., Caelen, O., Alippi, C., and Bontempi, G. (2018). Credit Card Fraud Detection: A Realistic Modeling and a Novel Learning Strategy. *IEEE Transactions on Neural Networks and Learning Systems*, 29(8), 3784-3797.
-8. Davis, J. and Goadrich, M. (2006). The Relationship Between Precision-Recall and ROC Curves. *Proceedings of the 23rd International Conference on Machine Learning*, 233-240.
-9. Elkan, C. (2001). The Foundations of Cost-Sensitive Learning. *Proceedings of the 17th International Joint Conference on Artificial Intelligence*, 973-978.
-10. Kingma, D. P. and Ba, J. (2015). Adam: A Method for Stochastic Optimization. *Proceedings of the 3rd International Conference on Learning Representations (ICLR)*.
-11. Saito, T. and Rehmsmeier, M. (2015). The Precision-Recall Plot Is More Informative than the ROC Plot When Evaluating Binary Classifiers on Imbalanced Datasets. *PLoS ONE*, 10(3), e0118432.
-12. Sakurada, M. and Yairi, T. (2014). Anomaly Detection Using Autoencoders with Nonlinear Dimensionality Reduction. *Proceedings of the MLSDA 2014 2nd Workshop on Machine Learning for Sensory Data Analysis*, 4-11. ACM.
-13. Scholkopf, B., Platt, J. C., Shawe-Taylor, J., Smola, A. J., and Williamson, R. C. (2001). Estimating the Support of a High-Dimensional Distribution. *Neural Computation*, 13(7), 1443-1471.
-14. Westland, J. C. (2022). A Comparative Study of Frequentist vs Bayesian A/B Testing in the Detection of E-commerce Fraud. *Journal of Electronic Business & Digital Economics*, 1(1/2), 3-23.
+`random_state=42` is used throughout. Results should be identical across runs on the same hardware. Training times may vary.
+
+## Requirements
+
+Dependencies are pinned in `requirements.txt`. The main packages are:
+
+- numpy, pandas, scipy
+- scikit-learn (models, preprocessing, metrics)
+- matplotlib, seaborn (plotting)
+- torch (used during development, not required for the final four models)
+
+Python 3.12.9 was used during development.
+
+## Authors
+
+Adam El Haddouchi (5476526) and Naufal El Khatibi (5315778), TU Delft, MSc Electrical Engineering.
+
+## Acknowledgments
+
+The dataset was created by the Machine Learning Group at Universite Libre de Bruxelles (Dal Pozzolo et al., 2015). This project was developed for EE4685 Bayesian Machine Learning at TU Delft. No explicit license; course project.
